@@ -1,0 +1,85 @@
+﻿name: Rollback From Snapshot
+
+on:
+  workflow_dispatch:
+    inputs:
+      snapshot_tag:
+        description: 'Snapshot tag or manifest entry id'
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.5.0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r tools/requirements.txt
+
+      - name: Download latest successful cab-artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RUN_ID=$(gh run list --workflow detections-ci.yml --branch main --status success --limit 1 --json databaseId -q '.[0].databaseId')
+          if [ -z "$RUN_ID" ]; then
+            echo "No successful detections-ci run found"
+            exit 1
+          fi
+          gh run download "$RUN_ID" -n cab-artifacts -D .
+
+      - name: Resolve snapshot entry
+        run: |
+          python tools/resolve_snapshot_entry.py \
+            --manifest releases/current/manifest.json \
+            --index governance/signatures/index.json \
+            --tag "${{ github.event.inputs.snapshot_tag }}" \
+            --out governance/selected_snapshot.json
+
+      - name: Verify snapshot signature (Gate)
+        run: |
+          python tools/verify_signatures.py \
+            --workflow-ref "$(jq -r '.workflow_ref' governance/selected_snapshot.json)" \
+            --artifact "$(jq -r '.snapshot_artifact_path' governance/selected_snapshot.json)" \
+            --signature "$(jq -r '.snapshot_signature_path' governance/selected_snapshot.json)" \
+            --certificate "$(jq -r '.snapshot_certificate_path' governance/selected_snapshot.json)"
+
+      - name: Extract snapshot artifact
+        run: |
+          SNAP=$(jq -r '.snapshot_artifact_path' governance/selected_snapshot.json)
+          mkdir -p governance/snapshot
+          case "$SNAP" in
+            *.tar.gz|*.tgz) tar -xzf "$SNAP" -C governance/snapshot ;;
+            *.zip) unzip -o "$SNAP" -d governance/snapshot ;;
+            *.json) cp "$SNAP" governance/snapshot/detection-snapshot.json ;;
+            *) echo "Unsupported snapshot artifact format: $SNAP"; exit 1 ;;
+          esac
+
+      - name: Run rollback script
+        run: |
+          python tools/rollback_from_snapshot.py \
+            --snapshot-dir governance/snapshot \
+            --manifest governance/selected_snapshot.json \
+            --snapshot-file "$(jq -r '.snapshot_artifact_path' governance/selected_snapshot.json)"
+
+      - name: Publish rollback summary
+        run: |
+          echo "# Rollback Executed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Snapshot tag: ${{ github.event.inputs.snapshot_tag }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Selected entry: governance/selected_snapshot.json" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Audit file: governance/rollback_audit.json" >> "$GITHUB_STEP_SUMMARY"
