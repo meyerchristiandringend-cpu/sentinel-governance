@@ -39,3 +39,7 @@ detections_backup/
 
 # Local evidence test runs
 evidence/run-local/
+
+# Generated governance drift reports
+governance/drift-report.json
+governance/drift-report.md
