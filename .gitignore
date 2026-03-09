@@ -39,3 +39,11 @@ detections_backup/
 
 # Local evidence test runs
 evidence/run-local/
+
+# Generated governance SLO reports
+governance/slo-report.json
+governance/slo-report.md
+
+# Generated governance drift reports
+governance/drift-report.json
+governance/drift-report.md
