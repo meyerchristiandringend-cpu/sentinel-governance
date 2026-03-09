@@ -1,0 +1,85 @@
+﻿name: Governance Guard
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  governance-guard:
+    if: github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Evaluate governance change controls
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pr = context.payload.pull_request;
+            const prNumber = pr.number;
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number: prNumber,
+              per_page: 100,
+            });
+
+            const governed = files
+              .map(f => f.filename)
+              .filter(name =>
+                name.startsWith('.github/workflows/') ||
+                name.startsWith('governance/') ||
+                name.startsWith('tools/') ||
+                name.startsWith('detections/')
+              );
+
+            if (governed.length === 0) {
+              core.summary
+                .addHeading('Governance Guard')
+                .addRaw('No governed paths changed. Check passed.')
+                .write();
+              return;
+            }
+
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner,
+              repo,
+              pull_number: prNumber,
+              per_page: 100,
+            });
+
+            const latestByUser = new Map();
+            for (const review of reviews) {
+              latestByUser.set(review.user.login, review.state);
+            }
+
+            const approvals = [...latestByUser.values()].filter(s => s === 'APPROVED').length;
+            const requiredApprovals = 1;
+
+            core.summary
+              .addHeading('Governance Guard')
+              .addRaw(`PR: #${prNumber}`)
+              .addEOL()
+              .addRaw(`Governed files changed: ${governed.length}`)
+              .addEOL()
+              .addRaw(`Approvals: ${approvals}/${requiredApprovals}`)
+              .addEOL()
+              .addCodeBlock(governed.join('\n'), 'text')
+              .write();
+
+            if (pr.draft) {
+              core.setFailed('Governance guard blocked: PR is draft and governed files were changed.');
+              return;
+            }
+
+            if (approvals < requiredApprovals) {
+              core.setFailed(`Governance guard blocked: at least ${requiredApprovals} approval is required for governed file changes.`);
+            }
