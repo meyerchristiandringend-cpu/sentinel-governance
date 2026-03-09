@@ -39,3 +39,7 @@ detections_backup/
 
 # Local evidence test runs
 evidence/run-local/
+
+# Generated governance KPI snapshots
+governance/kpi-snapshot.json
+governance/kpi-summary.md
