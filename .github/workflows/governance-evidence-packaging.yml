@@ -1,0 +1,57 @@
+﻿name: Governance Evidence Packaging
+
+on:
+  workflow_dispatch:
+    inputs:
+      quarter:
+        description: 'Quarter (YYYY-Q1..Q4). Leave empty to auto-detect.'
+        required: false
+        default: ''
+  pull_request:
+    branches: [main]
+    paths:
+      - 'governance/**'
+      - '.github/workflows/**'
+      - '.github/CODEOWNERS'
+      - 'tools/**'
+
+permissions:
+  contents: read
+
+jobs:
+  governance-evidence-packaging:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build governance evidence package
+        env:
+          INPUT_QUARTER: ${{ github.event.inputs.quarter }}
+        run: |
+          RUN_ID="pr-${{ github.event.pull_request.number || github.run_number }}-${{ github.run_id }}"
+          if [ -n "$INPUT_QUARTER" ]; then
+            python tools/build_governance_evidence_package.py --repo . --quarter "$INPUT_QUARTER" --run-id "$RUN_ID"
+          else
+            python tools/build_governance_evidence_package.py --repo . --run-id "$RUN_ID"
+          fi
+
+      - name: Locate package path
+        id: pkg
+        run: |
+          PKG_PATH=$(find governance/evidence/quarterly -mindepth 2 -maxdepth 2 -type d | sort | tail -n 1)
+          echo "path=$PKG_PATH" >> "$GITHUB_OUTPUT"
+          echo "package_path=$PKG_PATH" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload evidence artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-evidence-package
+          path: ${{ steps.pkg.outputs.path }}
+          if-no-files-found: error

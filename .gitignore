@@ -39,3 +39,6 @@ detections_backup/
 
 # Local evidence test runs
 evidence/run-local/
+
+# Generated governance evidence packages
+governance/evidence/quarterly/
