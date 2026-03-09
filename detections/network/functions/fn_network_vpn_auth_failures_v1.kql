@@ -1,0 +1,3 @@
+﻿// Normalized network VPN authentication events
+CommonSecurityLog
+| project TimeGenerated, SrcIP=SourceIP, Result=DeviceAction

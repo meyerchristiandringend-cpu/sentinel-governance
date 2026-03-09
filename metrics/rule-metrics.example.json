@@ -1,0 +1,23 @@
+﻿[
+  {
+    "rule_id": "excessive-login-failures",
+    "alerts_30d": 620,
+    "fp_rate": 0.48,
+    "avg_query_ms": 1450,
+    "threshold": 10
+  },
+  {
+    "rule_id": "impossible-travel",
+    "alerts_30d": 0,
+    "fp_rate": 0.05,
+    "avg_query_ms": 980,
+    "threshold": 1
+  },
+  {
+    "rule_id": "suspicious-powershell",
+    "alerts_30d": 132,
+    "fp_rate": 0.12,
+    "avg_query_ms": 2450,
+    "threshold": 1
+  }
+]

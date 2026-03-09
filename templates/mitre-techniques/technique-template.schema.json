@@ -1,0 +1,47 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/schemas/technique-template.schema.json",
+  "title": "MITRE Technique Template",
+  "type": "object",
+  "required": ["template_id", "technique", "name", "base_query", "parameters", "bindings"],
+  "properties": {
+    "template_id": { "type": "string" },
+    "technique": { "type": "string", "pattern": "^T[0-9]{4}(\\.[0-9]{3})?$" },
+    "name": { "type": "string" },
+    "base_query": { "type": "string" },
+    "default_pack": { "type": "string" },
+    "owner": {
+      "type": "object",
+      "properties": {
+        "team": { "type": "string" },
+        "slack": { "type": "string" },
+        "oncall": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "parameters": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": { "type": "string", "enum": ["string", "number", "array"] },
+          "default": {}
+        }
+      }
+    },
+    "bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source", "mapping"],
+        "properties": {
+          "source": { "type": "string" },
+          "pack": { "type": "string" },
+          "mapping": { "type": "object" }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

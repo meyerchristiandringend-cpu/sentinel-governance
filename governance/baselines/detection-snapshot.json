@@ -1,0 +1,74 @@
+{
+  "generated_at": "2026-03-09T02:35:27.897888+00:00",
+  "rules": [
+    {
+      "id": "t1110-password-spray-entra-id-dev",
+      "name": "T1110 Password Spray - Entra ID",
+      "pack": "identity",
+      "lifecycle": "production",
+      "severity": "Medium",
+      "enabled": true,
+      "threshold": {
+        "operator": "GreaterThan",
+        "value": 10,
+        "metric": "cnt"
+      },
+      "stable_id": "840f7524-64bc-7e3e-83d3-a561e745c46d",
+      "sha256": "5fbd31a30093350389dd96706e259d38e9b9742d74fd9eb6ee8c1154d1660b8c",
+      "path": "C:/Users/meyer/Documents/Benutzerdefinierte Office-Vorlagen/detections/identity/rules/generated/t1110-password-spray-entra-id-dev.yaml"
+    },
+    {
+      "id": "t1110-password-spray-entra-id-prod",
+      "name": "T1110 Password Spray - Entra ID",
+      "pack": "identity",
+      "lifecycle": "production",
+      "severity": "Medium",
+      "enabled": true,
+      "threshold": {
+        "operator": "GreaterThan",
+        "value": 10,
+        "metric": "failures"
+      },
+      "stable_id": "4c7e510a-4a73-f03c-6d08-f7bc4de5dcfa",
+      "sha256": "f4a84c95ab925d6098c9bd5662715398d8bdce1a5946fdccc5d94cf3d8a8c6a9",
+      "path": "C:/Users/meyer/Documents/Benutzerdefinierte Office-Vorlagen/detections/identity/rules/generated/t1110-password-spray-entra-id-prod.yaml"
+    },
+    {
+      "id": "t1110-password-spray-vpn-dev",
+      "name": "T1110 Password Spray - VPN",
+      "pack": "network",
+      "lifecycle": "experimental",
+      "severity": "Medium",
+      "enabled": true,
+      "threshold": {
+        "operator": "GreaterThan",
+        "value": 10,
+        "metric": "cnt"
+      },
+      "stable_id": "556c1a01-61a6-2585-ea4a-63a43b98451c",
+      "sha256": "1b4bd976fa84d6680d1e1818219bb3454ed3b3e0bc4e549b9c86691c0f193855",
+      "path": "C:/Users/meyer/Documents/Benutzerdefinierte Office-Vorlagen/detections/network/rules/generated/t1110-password-spray-vpn-dev.yaml"
+    },
+    {
+      "id": "t1110-password-spray-vpn-prod",
+      "name": "T1110 Password Spray - VPN",
+      "pack": "network",
+      "lifecycle": "experimental",
+      "severity": "Medium",
+      "enabled": true,
+      "threshold": {
+        "operator": "GreaterThan",
+        "value": 10,
+        "metric": "cnt"
+      },
+      "stable_id": "9af439bf-41d8-fc04-9a7d-a2821ad88c72",
+      "sha256": "915c7555178000571a1bc63dced7b0bdb8d1476917d8438c64d18b6f21555803",
+      "path": "C:/Users/meyer/Documents/Benutzerdefinierte Office-Vorlagen/detections/network/rules/generated/t1110-password-spray-vpn-prod.yaml"
+    }
+  ],
+  "count": 4,
+  "packs": [
+    "identity",
+    "network"
+  ]
+}

@@ -1,0 +1,25 @@
+﻿variants:
+  - env: dev
+    schedule: { frequency: PT15M, lookback: PT1H }
+    severity: Low
+    enabled: true
+    createIncident: false
+    grouping: { enabled: true, lookback: PT2H, byEntities: [User] }
+    suppression: { enabled: false }
+    threshold:
+      base: 5
+      operator: GreaterThan
+      metric: cnt
+      multiplier: 2.0
+
+  - env: prod
+    schedule: { frequency: PT5M, lookback: PT5M }
+    severity: Medium
+    enabled: true
+    createIncident: true
+    grouping: { enabled: true, lookback: PT1H, byEntities: [User] }
+    suppression: { enabled: true, duration: PT1H }
+    threshold:
+      base: 10
+      operator: GreaterThan
+      metric: failures

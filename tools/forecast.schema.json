@@ -1,0 +1,97 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/schemas/forecast.schema.json",
+  "title": "Detection Forecast Report",
+  "type": "object",
+  "required": [
+    "generated_at",
+    "risk_score",
+    "gate_status",
+    "summary",
+    "mitre_diff",
+    "pack_summary",
+    "findings",
+    "rules"
+  ],
+  "properties": {
+    "generated_at": { "type": "string" },
+    "risk_score": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "gate_status": { "type": "string", "enum": ["ALLOW", "BLOCK"] },
+    "summary": {
+      "type": "object",
+      "required": ["compiled_rules", "findings_total", "findings_by_severity"],
+      "properties": {
+        "compiled_rules": { "type": "integer", "minimum": 0 },
+        "findings_total": { "type": "integer", "minimum": 0 },
+        "findings_by_severity": {
+          "type": "object",
+          "required": ["critical", "high", "medium", "low"],
+          "properties": {
+            "critical": { "type": "integer", "minimum": 0 },
+            "high": { "type": "integer", "minimum": 0 },
+            "medium": { "type": "integer", "minimum": 0 },
+            "low": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "mitre_diff": {
+      "type": "object",
+      "required": ["added", "removed", "unchanged", "current_total", "previous_total"],
+      "properties": {
+        "added": { "type": "array", "items": { "type": "string" } },
+        "removed": { "type": "array", "items": { "type": "string" } },
+        "unchanged": { "type": "array", "items": { "type": "string" } },
+        "current_total": { "type": "integer", "minimum": 0 },
+        "previous_total": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "pack_summary": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["rules", "experimental", "high_severity"],
+        "properties": {
+          "rules": { "type": "integer", "minimum": 0 },
+          "experimental": { "type": "integer", "minimum": 0 },
+          "high_severity": { "type": "integer", "minimum": 0 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["severity", "category", "rule_id", "message"],
+        "properties": {
+          "severity": { "type": "string", "enum": ["critical", "high", "medium", "low"] },
+          "category": { "type": "string" },
+          "rule_id": { "type": "string" },
+          "message": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "file", "env", "pack", "threshold", "stable_id"],
+        "properties": {
+          "name": { "type": "string" },
+          "file": { "type": "string" },
+          "env": { "type": "string" },
+          "pack": { "type": "string" },
+          "threshold": { "type": "integer", "minimum": 0 },
+          "stable_id": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,13 @@
+﻿id: excessive-login-failures
+name: Excessive Login Failures
+query: |
+  SigninLogs
+  | summarize fail_count=countif(ResultType != 0) by UserPrincipalName, bin(TimeGenerated, 15m)
+  | where fail_count >= threshold
+metadata:
+  owner:
+    team: identity-detection
+    slack: "#soc-detections"
+    oncall: sec-detect-oncall
+  mitre_techniques:
+    - T1110

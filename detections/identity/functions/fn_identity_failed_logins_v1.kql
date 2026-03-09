@@ -1,0 +1,3 @@
+﻿// Normalized identity failed login events
+SigninLogs
+| project TimeGenerated, UserPrincipalName, Result

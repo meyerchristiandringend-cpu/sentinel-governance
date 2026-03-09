@@ -1,0 +1,14 @@
+﻿{
+  "release": "2026.03",
+  "released_at": "2026-03-08",
+  "rules": 0,
+  "new_rules": 0,
+  "updated_rules": 0,
+  "deprecated_rules": 0,
+  "packs": {
+    "identity": 0,
+    "endpoint": 0,
+    "cloud": 0,
+    "network": 0
+  }
+}

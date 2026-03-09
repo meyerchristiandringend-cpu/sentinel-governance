@@ -1,0 +1,56 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/schemas/rule-compiler.schema.json",
+  "title": "Rule Compiler Inputs",
+  "type": "object",
+  "properties": {
+    "template": {
+      "type": "object",
+      "required": ["technique", "name", "bindings"],
+      "properties": {
+        "technique": { "type": "string", "pattern": "^T[0-9]{4}(\\.[0-9]{3})?$" },
+        "name": { "type": "string" },
+        "version": { "type": "integer", "minimum": 1 },
+        "pack": { "type": "string" },
+        "bindings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["bindingName", "sourceFunction"],
+            "properties": {
+              "bindingName": { "type": "string" },
+              "pack": { "type": "string" },
+              "sourceFunction": { "type": "string" },
+              "where": { "type": "string" },
+              "reduce": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "params": {
+      "type": "object",
+      "required": ["variants"],
+      "properties": {
+        "variants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["schedule"],
+            "properties": {
+              "env": { "type": "string" },
+              "schedule": {
+                "type": "object",
+                "required": ["frequency", "lookback"],
+                "properties": {
+                  "frequency": { "type": "string" },
+                  "lookback": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
