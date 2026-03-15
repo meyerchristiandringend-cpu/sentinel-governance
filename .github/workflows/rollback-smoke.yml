@@ -37,7 +37,7 @@ jobs:
           echo "snap-win" > governance/snapshot/detections/windows/rules/generated/rule-win.yaml
           echo "snap-linux" > governance/snapshot/detections/linux/rules/generated/rule-linux.yaml
           python - <<'PY'
-import hashlib, json, pathlib
+
 base = pathlib.Path('governance/snapshot')
 checks = {}
 for p in base.rglob('*'):
