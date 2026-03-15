@@ -39,3 +39,7 @@ detections_backup/
 
 # Local evidence test runs
 evidence/run-local/
+
+# Generated governance control coverage reports
+governance/control-coverage-report.json
+governance/control-coverage-report.md
