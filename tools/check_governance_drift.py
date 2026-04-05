@@ -120,6 +120,16 @@ def build_markdown(report: dict) -> str:
     return '\n'.join(lines) + '\n'
 
 
+def build_recommendations(severity: str) -> list[str]:
+    if severity == 'high':
+        return ['Trigger CAB escalation and block merge until high-severity drift is resolved.']
+    if severity == 'medium':
+        return ['Block merge and remediate governance documentation/enforcement drift.']
+    if severity == 'low':
+        return ['Resolve governance checklist/reference drift before release.']
+    return ['No actionable governance drift detected.']
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description='Detect governance drift and emit JSON/Markdown reports')
     parser.add_argument('--repo', default='.', help='Repository root')
@@ -129,23 +139,43 @@ def main() -> int:
 
     repo = Path(args.repo).resolve()
     violations: list[Violation] = []
-    recommendations: list[str] = []
+    codeowners_path = repo / '.github/CODEOWNERS'
 
     for rel in CORE_REQUIRED_FILES:
         if not (repo / rel).is_file():
-            violations.append(Violation('high', 'missing_core_artifact', 'Core governance artifact is missing.', rel))
+            message = 'Required governance control `.github/CODEOWNERS` is missing.' if rel == '.github/CODEOWNERS' else 'Core governance artifact is missing.'
+            violations.append(Violation('high', 'missing_core_artifact', message, rel))
+
+    if not codeowners_path.is_file():
+        drift_detected, severity, exit_code = classify(violations)
+        report = {
+            'drift_detected': drift_detected,
+            'severity': severity,
+            'violations': [asdict(v) for v in violations],
+            'recommended_actions': build_recommendations(severity),
+        }
+
+        json_out = repo / args.json_out
+        md_out = repo / args.md_out
+        json_out.parent.mkdir(parents=True, exist_ok=True)
+        md_out.parent.mkdir(parents=True, exist_ok=True)
+        json_out.write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
+        md_out.write_text(build_markdown(report), encoding='utf-8')
+
+        print(f'Wrote JSON report: {json_out}')
+        print(f'Wrote Markdown report: {md_out}')
+        print(f"Drift detected={drift_detected} severity={severity} exit_code={exit_code}")
+        return exit_code
 
     for rel in OPTIONAL_GOV_FILES:
         if not (repo / rel).is_file():
             violations.append(Violation('info', 'missing_optional_artifact', 'Governance artifact not present in this branch baseline.', rel))
 
-    codeowners_path = repo / '.github/CODEOWNERS'
-    if codeowners_path.is_file():
-        codeowners = read_text(codeowners_path)
-        codeowners_patterns = parse_codeowners_patterns(codeowners)
-        for rule in REQUIRED_CODEOWNERS_RULES:
-            if normalize_codeowners_pattern(rule) not in codeowners_patterns:
-                violations.append(Violation('high', 'codeowners_drift', 'Required governed path rule is missing in CODEOWNERS.', '.github/CODEOWNERS'))
+    codeowners = read_text(codeowners_path)
+    codeowners_patterns = parse_codeowners_patterns(codeowners)
+    for rule in REQUIRED_CODEOWNERS_RULES:
+        if normalize_codeowners_pattern(rule) not in codeowners_patterns:
+            violations.append(Violation('high', 'codeowners_drift', 'Required governed path rule is missing in CODEOWNERS.', '.github/CODEOWNERS'))
 
     guard_path = repo / '.github/workflows/governance-guard.yml'
     if guard_path.is_file():
@@ -176,20 +206,11 @@ def main() -> int:
 
     drift_detected, severity, exit_code = classify(violations)
 
-    if severity == 'high':
-        recommendations.append('Trigger CAB escalation and block merge until high-severity drift is resolved.')
-    elif severity == 'medium':
-        recommendations.append('Block merge and remediate governance documentation/enforcement drift.')
-    elif severity == 'low':
-        recommendations.append('Resolve governance checklist/reference drift before release.')
-    else:
-        recommendations.append('No actionable governance drift detected.')
-
     report = {
         'drift_detected': drift_detected,
         'severity': severity,
         'violations': [asdict(v) for v in violations],
-        'recommended_actions': recommendations,
+        'recommended_actions': build_recommendations(severity),
     }
 
     json_out = repo / args.json_out
