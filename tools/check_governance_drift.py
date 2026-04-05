@@ -130,6 +130,28 @@ def build_recommendations(severity: str) -> list[str]:
     return ['No actionable governance drift detected.']
 
 
+def write_report(repo: Path, json_out_rel: str, md_out_rel: str, report: dict) -> None:
+    json_out = repo / json_out_rel
+    md_out = repo / md_out_rel
+    json_out.parent.mkdir(parents=True, exist_ok=True)
+    md_out.parent.mkdir(parents=True, exist_ok=True)
+    json_out.write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
+    md_out.write_text(build_markdown(report), encoding='utf-8')
+    print(f'Wrote JSON report: {json_out}')
+    print(f'Wrote Markdown report: {md_out}')
+
+
+def build_report(violations: list[Violation]) -> tuple[dict, int]:
+    drift_detected, severity, exit_code = classify(violations)
+    report = {
+        'drift_detected': drift_detected,
+        'severity': severity,
+        'violations': [asdict(v) for v in violations],
+        'recommended_actions': build_recommendations(severity),
+    }
+    return report, exit_code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description='Detect governance drift and emit JSON/Markdown reports')
     parser.add_argument('--repo', default='.', help='Repository root')
@@ -147,24 +169,9 @@ def main() -> int:
             violations.append(Violation('high', 'missing_core_artifact', message, rel))
 
     if not codeowners_path.is_file():
-        drift_detected, severity, exit_code = classify(violations)
-        report = {
-            'drift_detected': drift_detected,
-            'severity': severity,
-            'violations': [asdict(v) for v in violations],
-            'recommended_actions': build_recommendations(severity),
-        }
-
-        json_out = repo / args.json_out
-        md_out = repo / args.md_out
-        json_out.parent.mkdir(parents=True, exist_ok=True)
-        md_out.parent.mkdir(parents=True, exist_ok=True)
-        json_out.write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
-        md_out.write_text(build_markdown(report), encoding='utf-8')
-
-        print(f'Wrote JSON report: {json_out}')
-        print(f'Wrote Markdown report: {md_out}')
-        print(f"Drift detected={drift_detected} severity={severity} exit_code={exit_code}")
+        report, exit_code = build_report(violations)
+        write_report(repo, args.json_out, args.md_out, report)
+        print(f"Drift detected={report['drift_detected']} severity={report['severity']} exit_code={exit_code}")
         return exit_code
 
     for rel in OPTIONAL_GOV_FILES:
@@ -204,26 +211,9 @@ def main() -> int:
         if 'governance-integrity' not in release:
             violations.append(Violation('low', 'release_checklist_drift', 'Release checklist should include governance-integrity check reference.', 'governance/governance-release-checklist.md'))
 
-    drift_detected, severity, exit_code = classify(violations)
-
-    report = {
-        'drift_detected': drift_detected,
-        'severity': severity,
-        'violations': [asdict(v) for v in violations],
-        'recommended_actions': build_recommendations(severity),
-    }
-
-    json_out = repo / args.json_out
-    md_out = repo / args.md_out
-    json_out.parent.mkdir(parents=True, exist_ok=True)
-    md_out.parent.mkdir(parents=True, exist_ok=True)
-
-    json_out.write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
-    md_out.write_text(build_markdown(report), encoding='utf-8')
-
-    print(f'Wrote JSON report: {json_out}')
-    print(f'Wrote Markdown report: {md_out}')
-    print(f"Drift detected={drift_detected} severity={severity} exit_code={exit_code}")
+    report, exit_code = build_report(violations)
+    write_report(repo, args.json_out, args.md_out, report)
+    print(f"Drift detected={report['drift_detected']} severity={report['severity']} exit_code={exit_code}")
     return exit_code
 
 
