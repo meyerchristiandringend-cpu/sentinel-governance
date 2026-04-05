@@ -22,10 +22,10 @@ OPTIONAL_GOV_FILES = [
 ]
 
 REQUIRED_CODEOWNERS_RULES = [
-    '/.github/workflows/*',
-    '/governance/**',
-    '/tools/**',
-    '/detections/**',
+    '.github/workflows/*',
+    'governance/**',
+    'tools/**',
+    'detections/**',
 ]
 
 REQUIRED_MATRIX_REFERENCES = [
@@ -53,6 +53,23 @@ class Violation:
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding='utf-8', errors='replace')
+
+
+def normalize_codeowners_pattern(pattern: str) -> str:
+    return pattern.strip().lstrip('/')
+
+
+def parse_codeowners_patterns(contents: str) -> set[str]:
+    patterns: set[str] = set()
+    for raw_line in contents.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith('#'):
+            continue
+        tokens = line.split()
+        if not tokens:
+            continue
+        patterns.add(normalize_codeowners_pattern(tokens[0]))
+    return patterns
 
 
 def classify(violations: list[Violation]) -> tuple[bool, str, int]:
@@ -123,10 +140,13 @@ def main() -> int:
             violations.append(Violation('info', 'missing_optional_artifact', 'Governance artifact not present in this branch baseline.', rel))
 
     codeowners_path = repo / '.github/CODEOWNERS'
-    if codeowners_path.is_file():
+    if not codeowners_path.is_file():
+        violations.append(Violation('high', 'missing_core_artifact', 'Required governance control `.github/CODEOWNERS` is missing.', '.github/CODEOWNERS'))
+    else:
         codeowners = read_text(codeowners_path)
+        codeowners_patterns = parse_codeowners_patterns(codeowners)
         for rule in REQUIRED_CODEOWNERS_RULES:
-            if rule not in codeowners:
+            if normalize_codeowners_pattern(rule) not in codeowners_patterns:
                 violations.append(Violation('high', 'codeowners_drift', 'Required governed path rule is missing in CODEOWNERS.', '.github/CODEOWNERS'))
 
     guard_path = repo / '.github/workflows/governance-guard.yml'
