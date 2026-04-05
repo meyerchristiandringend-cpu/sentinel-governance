@@ -6,10 +6,10 @@ from pathlib import Path
 
 CORE_REQUIRED_FILES = [
     'governance/repository-governance.md',
+    '.github/CODEOWNERS',
 ]
 
 OPTIONAL_GOV_FILES = [
-    '.github/CODEOWNERS',
     '.github/workflows/governance-guard.yml',
     '.github/workflows/governance-integrity.yml',
     '.github/workflows/governance-evidence-packaging.yml',
@@ -140,9 +140,7 @@ def main() -> int:
             violations.append(Violation('info', 'missing_optional_artifact', 'Governance artifact not present in this branch baseline.', rel))
 
     codeowners_path = repo / '.github/CODEOWNERS'
-    if not codeowners_path.is_file():
-        violations.append(Violation('high', 'missing_core_artifact', 'Required governance control `.github/CODEOWNERS` is missing.', '.github/CODEOWNERS'))
-    else:
+    if codeowners_path.is_file():
         codeowners = read_text(codeowners_path)
         codeowners_patterns = parse_codeowners_patterns(codeowners)
         for rule in REQUIRED_CODEOWNERS_RULES:
