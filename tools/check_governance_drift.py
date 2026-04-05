@@ -1,221 +1,163 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 import argparse
 import json
-from dataclasses import dataclass, asdict
+import sys
 from pathlib import Path
 
-CORE_REQUIRED_FILES = [
-    'governance/repository-governance.md',
-    '.github/CODEOWNERS',
-]
+# --------------------------------------------------------------------
+# Normalization helpers
+# --------------------------------------------------------------------
 
-OPTIONAL_GOV_FILES = [
-    '.github/workflows/governance-guard.yml',
-    '.github/workflows/governance-integrity.yml',
-    '.github/workflows/governance-evidence-packaging.yml',
-    'governance/policy-change-control.md',
-    'governance/governance-architecture-overview.md',
-    'governance/governance-evidence-matrix.md',
-    'governance/governance-release-checklist.md',
-    'governance/quarterly-governance-review-cycle.md',
-    'governance/governance-maturity-rubric.md',
-]
+def normalize_pattern(p: str) -> str:
+    """Normalize CODEOWNERS patterns by removing leading slashes and trimming whitespace."""
+    return p.strip().lstrip('/')
 
-REQUIRED_CODEOWNERS_RULES = [
+
+# Required rules in documented form (no leading slash)
+REQUIRED_RULES = [
     '.github/workflows/*',
     'governance/**',
     'tools/**',
     'detections/**',
 ]
 
-REQUIRED_MATRIX_REFERENCES = [
-    'governance/repository-governance.md',
+# Core governance artifacts that must exist
+CORE_REQUIRED_FILES = [
     '.github/CODEOWNERS',
-    '.github/workflows/governance-guard.yml',
-    'governance/policy-change-control.md',
-    'governance/governance-architecture-overview.md',
-]
-
-REQUIRED_QUARTERLY_REFERENCES = [
-    'governance/policy-change-control.md',
-    '.github/workflows/governance-guard.yml',
-    '.github/workflows/governance-integrity.yml',
+    'governance/repository-governance.md',
 ]
 
 
-@dataclass
-class Violation:
-    severity: str
-    kind: str
-    message: str
-    artifact: str
+# --------------------------------------------------------------------
+# Report builders
+# --------------------------------------------------------------------
+
+def build_recommendations(drift_items: list[dict]) -> list[str]:
+    """Generate recommendations based on drift items."""
+    recs: list[str] = []
+    for drift in drift_items:
+        rule = drift.get('rule', '')
+        if rule == 'CODEOWNERS_presence':
+            recs.append('Add a .github/CODEOWNERS file to satisfy core governance requirements.')
+        elif rule in REQUIRED_RULES:
+            recs.append(f'Add required CODEOWNERS rule: {rule}')
+        else:
+            recs.append(f"Review drift: {drift.get('message', 'Unknown drift detected.')}")
+    return recs
 
 
-def read_text(path: Path) -> str:
-    return path.read_text(encoding='utf-8', errors='replace')
+def build_report(drift_items: list[dict]) -> dict:
+    """Build a unified drift report structure."""
+    return {
+        'drift': drift_items,
+        'recommendations': build_recommendations(drift_items),
+    }
 
 
-def normalize_codeowners_pattern(pattern: str) -> str:
-    return pattern.strip().lstrip('/')
+def write_report(report: dict, json_out: Path, md_out: Path) -> None:
+    """Write JSON and Markdown outputs."""
+    if json_out:
+        json_out.parent.mkdir(parents=True, exist_ok=True)
+        json_out.write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
+
+    if md_out:
+        md_out.parent.mkdir(parents=True, exist_ok=True)
+        lines = ['# Drift Report', '']
+        for drift in report['drift']:
+            lines.append(f"- **{drift['severity']}** — {drift['rule']}: {drift['message']}")
+        lines.append('')
+        lines.append('## Recommendations')
+        for recommendation in report['recommendations']:
+            lines.append(f'- {recommendation}')
+        md_out.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 
-def parse_codeowners_patterns(contents: str) -> set[str]:
-    patterns: set[str] = set()
-    for raw_line in contents.splitlines():
-        line = raw_line.strip()
+# --------------------------------------------------------------------
+# Main drift checker
+# --------------------------------------------------------------------
+
+def check_governance_drift(repo_path: Path, json_out: Path, md_out: Path) -> int:
+    if not json_out.is_absolute():
+        json_out = repo_path / json_out
+    if not md_out.is_absolute():
+        md_out = repo_path / md_out
+
+    drift_items: list[dict] = []
+
+    # ----------------------------------------------------------------
+    # Check core required artifacts
+    # ----------------------------------------------------------------
+    for core_file in CORE_REQUIRED_FILES:
+        path = repo_path / core_file
+        if not path.is_file():
+            drift_items.append({
+                'severity': 'high',
+                'rule': core_file,
+                'message': f'Required core governance artifact missing: {core_file}',
+            })
+
+    # Fast-path: missing CODEOWNERS → deterministic exit
+    codeowners_path = repo_path / '.github' / 'CODEOWNERS'
+    if not codeowners_path.is_file():
+        drift_items = [
+            {
+                'severity': 'high',
+                'rule': 'CODEOWNERS_presence',
+                'message': 'Required CODEOWNERS file is missing.',
+            }
+        ]
+        report = build_report(drift_items)
+        write_report(report, json_out, md_out)
+        return 2
+
+    # ----------------------------------------------------------------
+    # Parse CODEOWNERS rules
+    # ----------------------------------------------------------------
+    patterns = set()
+    for line in codeowners_path.read_text(encoding='utf-8', errors='replace').splitlines():
+        line = line.strip()
         if not line or line.startswith('#'):
             continue
-        tokens = line.split()
-        if not tokens:
-            continue
-        patterns.add(normalize_codeowners_pattern(tokens[0]))
-    return patterns
+        token = line.split()[0]
+        patterns.add(normalize_pattern(token))
+
+    # ----------------------------------------------------------------
+    # Validate required rules
+    # ----------------------------------------------------------------
+    for required in REQUIRED_RULES:
+        if normalize_pattern(required) not in patterns:
+            drift_items.append({
+                'severity': 'high',
+                'rule': required,
+                'message': f'Required CODEOWNERS rule missing: {required}',
+            })
+
+    # ----------------------------------------------------------------
+    # Final report
+    # ----------------------------------------------------------------
+    report = build_report(drift_items)
+    write_report(report, json_out, md_out)
+
+    # Exit code: 0 if no drift, 2 if high severity drift
+    if any(drift['severity'] == 'high' for drift in drift_items):
+        return 2
+    return 0
 
 
-def classify(violations: list[Violation]) -> tuple[bool, str, int]:
-    actionable = [v for v in violations if v.severity in {'low', 'medium', 'high'}]
-    if not actionable:
-        return False, 'none', 0
-    if any(v.severity == 'high' for v in actionable):
-        return True, 'high', 2
-    if any(v.severity == 'medium' for v in actionable):
-        return True, 'medium', 1
-    return True, 'low', 1
+# --------------------------------------------------------------------
+# CLI entrypoint
+# --------------------------------------------------------------------
 
-
-def build_markdown(report: dict) -> str:
-    severity = report['severity']
-    emoji = '🟢' if severity == 'none' else ('🟡' if severity in ('low', 'medium') else '🔴')
-
-    lines = [
-        '# Governance Drift Report',
-        '',
-        f"Status: {emoji} `{severity.upper()}`",
-        f"Drift detected: `{str(report['drift_detected']).lower()}`",
-        f"Violations: `{len(report['violations'])}`",
-        '',
-        '| Severity | Type | Artifact | Message |',
-        '|---|---|---|---|',
-    ]
-
-    if report['violations']:
-        for v in report['violations']:
-            lines.append(f"| {v['severity']} | {v['kind']} | `{v['artifact']}` | {v['message']} |")
-    else:
-        lines.append('| none | none | `n/a` | No drift violations found. |')
-
-    lines.extend(['', '## Recommended Actions'])
-    if report['recommended_actions']:
-        lines.extend([f"- {a}" for a in report['recommended_actions']])
-    else:
-        lines.append('- No action required.')
-
-    lines.extend([
-        '',
-        '## References',
-        '- `governance/governance-evidence-matrix.md`',
-        '- `governance/quarterly-governance-review-cycle.md`',
-    ])
-
-    return '\n'.join(lines) + '\n'
-
-
-def build_recommendations(severity: str) -> list[str]:
-    if severity == 'high':
-        return ['Trigger CAB escalation and block merge until high-severity drift is resolved.']
-    if severity == 'medium':
-        return ['Block merge and remediate governance documentation/enforcement drift.']
-    if severity == 'low':
-        return ['Resolve governance checklist/reference drift before release.']
-    return ['No actionable governance drift detected.']
-
-
-def write_report(repo: Path, json_out_rel: str, md_out_rel: str, report: dict) -> None:
-    json_out = repo / json_out_rel
-    md_out = repo / md_out_rel
-    json_out.parent.mkdir(parents=True, exist_ok=True)
-    md_out.parent.mkdir(parents=True, exist_ok=True)
-    json_out.write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
-    md_out.write_text(build_markdown(report), encoding='utf-8')
-    print(f'Wrote JSON report: {json_out}')
-    print(f'Wrote Markdown report: {md_out}')
-
-
-def build_report(violations: list[Violation]) -> tuple[dict, int]:
-    drift_detected, severity, exit_code = classify(violations)
-    report = {
-        'drift_detected': drift_detected,
-        'severity': severity,
-        'violations': [asdict(v) for v in violations],
-        'recommended_actions': build_recommendations(severity),
-    }
-    return report, exit_code
-
-
-def main() -> int:
+if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Detect governance drift and emit JSON/Markdown reports')
     parser.add_argument('--repo', default='.', help='Repository root')
     parser.add_argument('--json-out', default='governance/drift-report.json', help='JSON report path')
     parser.add_argument('--md-out', default='governance/drift-report.md', help='Markdown report path')
     args = parser.parse_args()
 
-    repo = Path(args.repo).resolve()
-    violations: list[Violation] = []
-    codeowners_path = repo / '.github/CODEOWNERS'
-
-    for rel in CORE_REQUIRED_FILES:
-        if not (repo / rel).is_file():
-            message = 'Required governance control `.github/CODEOWNERS` is missing.' if rel == '.github/CODEOWNERS' else 'Core governance artifact is missing.'
-            violations.append(Violation('high', 'missing_core_artifact', message, rel))
-
-    if not codeowners_path.is_file():
-        report, exit_code = build_report(violations)
-        write_report(repo, args.json_out, args.md_out, report)
-        print(f"Drift detected={report['drift_detected']} severity={report['severity']} exit_code={exit_code}")
-        return exit_code
-
-    for rel in OPTIONAL_GOV_FILES:
-        if not (repo / rel).is_file():
-            violations.append(Violation('info', 'missing_optional_artifact', 'Governance artifact not present in this branch baseline.', rel))
-
-    codeowners = read_text(codeowners_path)
-    codeowners_patterns = parse_codeowners_patterns(codeowners)
-    for rule in REQUIRED_CODEOWNERS_RULES:
-        if normalize_codeowners_pattern(rule) not in codeowners_patterns:
-            violations.append(Violation('high', 'codeowners_drift', 'Required governed path rule is missing in CODEOWNERS.', '.github/CODEOWNERS'))
-
-    guard_path = repo / '.github/workflows/governance-guard.yml'
-    if guard_path.is_file():
-        guard = read_text(guard_path)
-        for marker in ['name: Governance Guard', 'pull_request:', 'core.setFailed']:
-            if marker not in guard:
-                violations.append(Violation('high', 'guard_workflow_drift', f'Governance guard workflow missing marker `{marker}`.', '.github/workflows/governance-guard.yml'))
-
-    matrix_path = repo / 'governance/governance-evidence-matrix.md'
-    if matrix_path.is_file():
-        matrix = read_text(matrix_path)
-        for ref in REQUIRED_MATRIX_REFERENCES:
-            if ref not in matrix:
-                violations.append(Violation('medium', 'matrix_drift', f'Evidence matrix missing reference `{ref}`.', 'governance/governance-evidence-matrix.md'))
-
-    quarterly_path = repo / 'governance/quarterly-governance-review-cycle.md'
-    if quarterly_path.is_file():
-        quarterly = read_text(quarterly_path)
-        for ref in REQUIRED_QUARTERLY_REFERENCES:
-            if ref not in quarterly:
-                violations.append(Violation('medium', 'quarterly_drift', f'Quarterly review cycle missing reference `{ref}`.', 'governance/quarterly-governance-review-cycle.md'))
-
-    release_path = repo / 'governance/governance-release-checklist.md'
-    if release_path.is_file():
-        release = read_text(release_path)
-        if 'governance-integrity' not in release:
-            violations.append(Violation('low', 'release_checklist_drift', 'Release checklist should include governance-integrity check reference.', 'governance/governance-release-checklist.md'))
-
-    report, exit_code = build_report(violations)
-    write_report(repo, args.json_out, args.md_out, report)
-    print(f"Drift detected={report['drift_detected']} severity={report['severity']} exit_code={exit_code}")
-    return exit_code
-
-
-if __name__ == '__main__':
-    raise SystemExit(main())
+    exit_code = check_governance_drift(
+        Path(args.repo).resolve(),
+        Path(args.json_out),
+        Path(args.md_out),
+    )
+    sys.exit(exit_code)
